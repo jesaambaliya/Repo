@@ -1,12 +1,9 @@
-from flask import Flask, request
+from fastapi import FastAPI, Request
 
-app = Flask(__name__)
+app = FastAPI()
 
-@app.route('/', methods=['POST'])
-def webhook():
-    data = request.json
-    print("Received alert:", data)
-    return {"status": "success"}, 200
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+@app.post("/")
+async def webhook_handler(request: Request):
+    payload = await request.json()
+    print("Received payload:", payload)
+    return {"message": "Webhook received"}
