@@ -17,3 +17,11 @@ async def webhook(request: Request):
 
     # Add your custom logic here (e.g., Dhan API call)
     return {"status": "success", "data": data}
+POST https://<your-render-url>/webhook
+Content-Type: application/json
+
+{
+  "symbol": "NIFTY",
+  "action": "BUY",
+  "price": 23000
+}
