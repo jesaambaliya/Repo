@@ -1,16 +1,19 @@
 from fastapi import FastAPI, Request
+import json
+from pydantic import BaseModel
 
 app = FastAPI()
 
-@app.post("/")
-async def webhook_handler(request: Request):
-    payload = await request.json()
-    print("Received payload:", payload)
-    return {"message": "Webhook received"}
-from fastapi import FastAPI
-
-app = FastAPI()
-
+# Test GET route
 @app.get("/")
-def root():
+def read_root():
     return {"message": "Webhook handler is live!"}
+
+# POST webhook route
+@app.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+    print("Received alert:", data)
+
+    # Add your custom logic here (e.g., Dhan API call)
+    return {"status": "success", "data": data}
