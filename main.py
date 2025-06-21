@@ -21,7 +21,7 @@ async def handle_webhook(request: Request):
 
     try:
         symbol = data["symbol"]
-        side = data["side"]  # "BUY" or "SELL"
+        side = data["action"]  # "BUY" or "SELL"
         product_type = data.get("productType", "INTRADAY")
         order_type = data.get("orderType", "MARKET")
         quantity = data.get("quantity", 75)
