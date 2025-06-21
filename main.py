@@ -25,7 +25,7 @@ async def handle_webhook(request: Request):
         product_type = data.get("productType", "INTRADAY")
         order_type = data.get("orderType", "MARKET")
         quantity = data.get("quantity", 75)
-        exchange_segment = data.get("exchangeSegment", "NSE_OPT")
+        exchange_segment = data.get("exchangeSegment", "NSE_FNO")
 
         headers = {
             "access-token": DHAN_ACCESS_TOKEN,
