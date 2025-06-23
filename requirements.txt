@@ -1,5 +1,5 @@
+dhanhq-py
 fastapi
-uvicorn
 httpx
 
 
