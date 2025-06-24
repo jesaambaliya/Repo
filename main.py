@@ -46,15 +46,16 @@ async def webhook(request: Request):
         transaction_type = "BUY" if action == "ENTRY" else "SELL"
 
         order_data = {
-            "securityId": security_id,
-            "transactionType": transaction_type,
-            "exchangeSegment": "NFO",
-            "productType": "INTRADAY",
-            "orderType": "MARKET",
-            "quantity": qty,
-            "price": 0,
-            "orderValidity": "DAY"
-        }
+        "securityId": security_id,
+        "transactionType": transaction_type,
+        "exchangeSegment": "NSE_FNO",
+        "productType": "INTRADAY",
+        "orderType": "MARKET",
+        "quantity": qty,
+        "price": 0,
+        "orderValidity": "DAY"
+}
+
 
         print("Placing Order:", order_data)
         response = dhan.place_order(order_data)
