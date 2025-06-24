@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from dhanhq import Dhan
+from danhq import Dhan
 import os
 
 app = FastAPI()
