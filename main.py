@@ -4,48 +4,53 @@ import os
 
 app = FastAPI()
 
-# Load credentials (store these in environment variables in Render)
-API_KEY = os.getenv("API_KEY") or "1000591159"
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN") or "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzUxMDUxMzM1LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiaHR0cHM6Ly93ZWJob29rLWhhbmRsZXItNmx1eS5vbnJlbmRlci5jb20iLCJkaGFuQ2xpZW50SWQiOiIxMDAwNTkxMTU5In0.f-1VYtckHZUlDnEUAlKXWIZH_d0MBSBUh6DA7gyRX9NU7J69fSHARu4TdwwWoiUGNVJOJ0R4dLcX7wirvkGLlQ"
+# ====== API Credentials ======
+API_KEY = "1000591159"  # Your Client ID
+ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzUxMDUxMzM1LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiaHR0cHM6Ly93ZWJob29rLWhhbmRsZXItNmx1eS5vbnJlbmRlci5jb20iLCJkaGFuQ2xpZW50SWQiOiIxMDAwNTkxMTU5In0.f-1VYtckHZUlDnEUAlKXWIZH_d0MBSBUh6DA7gyRX9NU7J69fSHARu4TdwwWoiUGNVJOJ0R4dLcX7wirvkGLlQ"  # Full access token
 
-# Initialize Dhan client
+# ====== Initialize Dhan Client ======
 dhan = Dhan(api_key=API_KEY, access_token=ACCESS_TOKEN)
 
 @app.get("/")
 def root():
-    return {"message": "Webhook handler is live!"}
+    return {"message": "Webhook handler is live and working!"}
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    try:
-        payload = await request.json()
+    data = await request.json()
+    
+    symbol = data.get("symbol", "NIFTY")
+    option_type = data.get("type", "CE")  # CE or PE
+    transaction_type = data.get("side", "BUY")  # BUY or SELL
+    qty = int(data.get("qty", 75))
 
-        # Log full payload for debug
-        print("Received Payload:", payload)
+    # STEP 1: Get list of NIFTY option instruments
+    instruments = dhan.get_instruments(exchange_segment="NSE_FNO", security_type="OPTIDX")
 
-        # Extract fields safely
-        symbol = payload.get("symbol", "NIFTY")
-        side = payload.get("side")
-        option_type = payload.get("type")  # CE or PE
-        qty = int(payload.get("quantity", 75))  # default to 1 lot
-        action = payload.get("action")  # ENTRY or EXIT
-        last_price = float(payload.get("lastTradedPrice", 0.0))
+    # STEP 2: Filter only for required type (CE or PE) and symbol
+    filtered = [
+        i for i in instruments 
+        if i['symbol'].upper() == symbol 
+        and i['optionType'] == option_type
+        and i['tradingSymbol'].startswith(symbol)
+        and i['expiryDate'] >= i['expiryDate']  # Ensures valid expiry
+    ]
 
-        # Validate required fields
-        if not all([side, option_type, action]):
-            return {"error": "Missing required fields (side/type/action)"}
+    # STEP 3: Sort by nearest expiry
+    sorted_filtered = sorted(filtered, key=lambda x: x['expiryDate'])
 
-        # Placeholder logic for ATM strike and security ID
-        if option_type == "CE":
-            security_id = "104069"  # e.g., dummy NIFTY CE
-        elif option_type == "PE":
-            security_id = "104070"  # e.g., dummy NIFTY PE
-        else:
-            return {"error": "Invalid option type"}
+    if not sorted_filtered:
+        return {"error": "No matching options found"}
 
-        transaction_type = "BUY" if action == "ENTRY" else "SELL"
+    # STEP 4: Pick the nearest ATM strike
+    ltp = float(data.get("lastTradedPrice", 23500))
+    atm_strike = min(sorted_filtered, key=lambda x: abs(float(x["strikePrice"]) - ltp))
 
-        order_data = {
+    # STEP 5: Extract securityId
+    security_id = atm_strike["securityId"]
+
+    # STEP 6: Create order payload
+    order = {
         "securityId": security_id,
         "transactionType": transaction_type,
         "exchangeSegment": "NSE_FNO",
@@ -54,13 +59,11 @@ async def webhook(request: Request):
         "quantity": qty,
         "price": 0,
         "orderValidity": "DAY"
-}
+    }
 
-
-        print("Placing Order:", order_data)
-        response = dhan.place_order(order_data)
+    # STEP 7: Place the order
+    try:
+        response = dhan.place_order(order)
         return {"status": "Order Placed", "response": response}
-
     except Exception as e:
-        print("Webhook error:", str(e))
-        return {"error": str(e)}
+        return {"status": "Order Failed", "error": str(e)}
