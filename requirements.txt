@@ -1,4 +1,4 @@
 fastapi
 uvicorn
 httpx
-dhanhq-py
+git+https://github.com/dhan-oss/DhanHQ-py.git
