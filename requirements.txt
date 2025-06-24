@@ -1,4 +1,4 @@
 fastapi
 uvicorn
 httpx
-dhanhq
+dhanhq-py
