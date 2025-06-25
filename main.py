@@ -1,15 +1,24 @@
 from fastapi import FastAPI, Request
-from danhq import Dhan
+from dhan import Dhan
 import os
 
 app = FastAPI()
 
-# ====== API Credentials ======
-API_KEY = "1000591159"  # Your Client ID
-ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzUxMDUxMzM1LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiaHR0cHM6Ly93ZWJob29rLWhhbmRsZXItNmx1eS5vbnJlbmRlci5jb20iLCJkaGFuQ2xpZW50SWQiOiIxMDAwNTkxMTU5In0.f-1VYtckHZUlDnEUAlKXWIZH_d0MBSBUh6DA7gyRX9NU7J69fSHARu4TdwwWoiUGNVJOJ0R4dLcX7wirvkGLlQ"  # Full access token
+# Replace with your live values
+client_id = os.environ.get("1000591159")
+access_token = os.environ.get("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzUxMDUxMzM1LCJ0b2tlbkNvbnN1bWVyVHlwZSI6IlNFTEYiLCJ3ZWJob29rVXJsIjoiaHR0cHM6Ly93ZWJob29rLWhhbmRsZXItNmx1eS5vbnJlbmRlci5jb20iLCJkaGFuQ2xpZW50SWQiOiIxMDAwNTkxMTU5In0.f-1VYtckHZUlDnEUAlKXWIZH_d0MBSBUh6DA7gyRX9NU7J69fSHARu4TdwwWoiUGNVJOJ0R4dLcX7wirvkGLlQ")
 
-# ====== Initialize Dhan Client ======
-dhan = Dhan(api_key=API_KEY, access_token=ACCESS_TOKEN)
+dhan = Dhan(client_id=client_id, access_token=access_token)
+
+# Predefined mapping of strikes (for testing)
+live_strike_map = {
+    "CE": {
+        "24500": "101000010245542"  # Replace with live CE securityId
+    },
+    "PE": {
+        "24500": "101000010245543"  # Replace with live PE securityId
+    }
+}
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -21,15 +30,14 @@ async def webhook(request: Request):
         qty = int(payload.get("qty", 75))
         ltp = float(payload.get("lastTradedPrice"))
 
-        if symbol == "NIFTY":
-            # Dynamically generate live ATM strike
-            strike = round(ltp / 50) * 50
-            if option_type == "CE":
-                security_id = dhan.get_instrument_by_symbol(f"NIFTY{strike}CE")["securityId"]
-            else:
-                security_id = dhan.get_instrument_by_symbol(f"NIFTY{strike}PE")["securityId"]
-        else:
-            return {"error": "Invalid symbol"}
+        # ATM strike
+        strike = str(round(ltp / 50) * 50)
+
+        if symbol != "NIFTY":
+            return {"status": "Error", "message": "Only NIFTY supported."}
+
+        # Get securityId from map
+        security_id = live_strike_map[option_type][strike]
 
         order_data = {
             "securityId": security_id,
@@ -48,48 +56,3 @@ async def webhook(request: Request):
     except Exception as e:
         print("Webhook error:", str(e))
         return {"status": "Error", "message": str(e)}
-
-
-    # STEP 1: Get list of NIFTY option instruments
-    instruments = dhan.get_instruments(exchange_segment="NSE_FNO", security_type="OPTIDX")
-
-    # STEP 2: Filter only for required type (CE or PE) and symbol
-    filtered = [
-        i for i in instruments 
-        if i['symbol'].upper() == symbol 
-        and i['optionType'] == option_type
-        and i['tradingSymbol'].startswith(symbol)
-        and i['expiryDate'] >= i['expiryDate']  # Ensures valid expiry
-    ]
-
-    # STEP 3: Sort by nearest expiry
-    sorted_filtered = sorted(filtered, key=lambda x: x['expiryDate'])
-
-    if not sorted_filtered:
-        return {"error": "No matching options found"}
-
-    # STEP 4: Pick the nearest ATM strike
-    ltp = float(data.get("lastTradedPrice", 23500))
-    atm_strike = min(sorted_filtered, key=lambda x: abs(float(x["strikePrice"]) - ltp))
-
-    # STEP 5: Extract securityId
-    security_id = atm_strike["securityId"]
-
-    # STEP 6: Create order payload
-    order = {
-        "securityId": security_id,
-        "transactionType": transaction_type,
-        "exchangeSegment": "NSE_FNO",
-        "productType": "INTRADAY",
-        "orderType": "MARKET",
-        "quantity": qty,
-        "price": 0,
-        "orderValidity": "DAY"
-    }
-
-    # STEP 7: Place the order
-    try:
-        response = dhan.place_order(order)
-        return {"status": "Order Placed", "response": response}
-    except Exception as e:
-        return {"status": "Order Failed", "error": str(e)}
