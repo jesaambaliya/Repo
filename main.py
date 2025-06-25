@@ -11,18 +11,44 @@ ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5
 # ====== Initialize Dhan Client ======
 dhan = Dhan(api_key=API_KEY, access_token=ACCESS_TOKEN)
 
-@app.get("/")
-def root():
-    return {"message": "Webhook handler is live and working!"}
-
 @app.post("/webhook")
 async def webhook(request: Request):
-    data = await request.json()
+    try:
+        payload = await request.json()
+        symbol = payload.get("symbol")
+        side = payload.get("side")
+        option_type = payload.get("type")
+        qty = int(payload.get("qty", 75))
+        ltp = float(payload.get("lastTradedPrice"))
+
+        if symbol == "NIFTY":
+            # Dynamically generate live ATM strike
+            strike = round(ltp / 50) * 50
+            if option_type == "CE":
+                security_id = dhan.get_instrument_by_symbol(f"NIFTY{strike}CE")["securityId"]
+            else:
+                security_id = dhan.get_instrument_by_symbol(f"NIFTY{strike}PE")["securityId"]
+        else:
+            return {"error": "Invalid symbol"}
+
+        order_data = {
+            "securityId": security_id,
+            "transactionType": "BUY" if side == "BUY" else "SELL",
+            "exchangeSegment": "NSE_FNO",
+            "productType": "INTRADAY",
+            "orderType": "MARKET",
+            "quantity": qty,
+            "price": 0,
+            "orderValidity": "DAY"
+        }
+
+        response = dhan.place_order(order_data)
+        return {"status": "Order Placed", "response": response}
     
-    symbol = data.get("symbol", "NIFTY")
-    option_type = data.get("type", "CE")  # CE or PE
-    transaction_type = data.get("side", "BUY")  # BUY or SELL
-    qty = int(data.get("qty", 75))
+    except Exception as e:
+        print("Webhook error:", str(e))
+        return {"status": "Error", "message": str(e)}
+
 
     # STEP 1: Get list of NIFTY option instruments
     instruments = dhan.get_instruments(exchange_segment="NSE_FNO", security_type="OPTIDX")
